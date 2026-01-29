@@ -1,0 +1,4 @@
+/utility/
+.env
+/infra/
+/lambda/node_modules/

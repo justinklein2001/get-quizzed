@@ -1,0 +1,153 @@
+name: Deploy Quiz App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - 'lambda/**'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # =========================================================
+  # JOB 1: DEPLOY FRONTEND (Next.js)
+  # =========================================================
+  deploy-frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    
+    # Only run if frontend files changed (or workflow file itself)
+    # We use a simple path filter step to save build minutes
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Needed for path filtering logic
+
+      # Check if 'frontend' folder changed. If not, we skip the heavy build.
+      - name: Check for changes
+        id: skip_check
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+
+      - name: Setup Node.js
+        if: steps.skip_check.outputs.frontend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: ./frontend/package-lock.json
+
+      - name: Install Dependencies
+        if: steps.skip_check.outputs.frontend == 'true'
+        run: npm ci
+        working-directory: ./frontend
+
+      - name: Build Static Site
+        if: steps.skip_check.outputs.frontend == 'true'
+        run: npm run build
+        working-directory: ./frontend
+        env:
+          # INJECT COGNITO VARS FOR BUILD TIME BAKING
+          NEXT_PUBLIC_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_USER_POOL_ID }}
+          NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_USER_POOL_CLIENT_ID }}
+
+      - name: Configure AWS Credentials
+        if: steps.skip_check.outputs.frontend == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Sync to S3
+        if: steps.skip_check.outputs.frontend == 'true'
+        run: |
+          # 1. Assets (Long Cache)
+          aws s3 sync ./frontend/out s3://${{ secrets.BUCKET_NAME }} \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "*.html" \
+            --exclude "sitemap*.xml" \
+            --exclude "robots.txt"
+
+          # 2. HTML Files (No Cache - forces browser to check for new index.html)
+          aws s3 sync ./frontend/out s3://${{ secrets.BUCKET_NAME }} \
+            --delete \
+            --cache-control "public, max-age=0, must-revalidate" \
+            --include "*.html" \
+            --include "sitemap*.xml" \
+            --include "robots.txt"
+
+      - name: Invalidate CloudFront
+        if: steps.skip_check.outputs.frontend == 'true'
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_ID }} \
+            --paths "/*"
+
+  # =========================================================
+  # JOB 2: DEPLOY BACKEND (Lambda)
+  # =========================================================
+  deploy-lambda:
+    name: Deploy Lambda
+    runs-on: ubuntu-latest
+    needs: [] # Runs in parallel with frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes
+        id: skip_check
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            lambda:
+              - 'lambda/**'
+
+      - name: Setup Node.js
+        if: steps.skip_check.outputs.lambda == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Production Deps
+        if: steps.skip_check.outputs.lambda == 'true'
+        working-directory: ./lambda
+        # --omit=dev ensures we don't upload typescript/eslint bloat to Lambda
+        run: npm ci --omit=dev
+
+      - name: Zip Lambda Code
+        if: steps.skip_check.outputs.lambda == 'true'
+        working-directory: ./lambda
+        run: |
+          # Zip everything in the folder recursively
+          zip -r function.zip .
+
+      - name: Configure AWS Credentials
+        if: steps.skip_check.outputs.lambda == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Update Lambda Function
+        if: steps.skip_check.outputs.lambda == 'true'
+        working-directory: ./lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_NAME }} \
+            --zip-file fileb://function.zip
