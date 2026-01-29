@@ -148,6 +148,14 @@ jobs:
         if: steps.skip_check.outputs.lambda == 'true'
         working-directory: ./lambda
         run: |
+          # 1. Upload to S3 (Reuse frontend bucket)
+          aws s3 cp function.zip s3://${{ secrets.BUCKET_NAME }}/deployments/function.zip
+
+          # 2. Update Lambda from S3
           aws lambda update-function-code \
             --function-name ${{ secrets.LAMBDA_NAME }} \
-            --zip-file fileb://function.zip
+            --s3-bucket ${{ secrets.BUCKET_NAME }} \
+            --s3-key deployments/function.zip
+
+          # 3. Cleanup S3 (Prevent public access)
+          aws s3 rm s3://${{ secrets.BUCKET_NAME }}/deployments/function.zip
