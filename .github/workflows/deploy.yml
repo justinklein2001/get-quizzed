@@ -117,6 +117,7 @@ jobs:
           filters: |
             lambda:
               - 'lambda/**'
+              - '.github/workflows/deploy.yml'
 
       - name: Setup Node.js
         if: steps.skip_check.outputs.lambda == 'true'
