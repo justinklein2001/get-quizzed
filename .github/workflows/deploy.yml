@@ -128,8 +128,8 @@ jobs:
       - name: Install Production Deps
         if: steps.skip_check.outputs.lambda == 'true'
         working-directory: ./lambda
-        # --omit=dev ensures we don't upload typescript/eslint bloat to Lambda
-        run: npm ci --omit=dev
+        # --omit=dev ensures no uploaded typescript/eslint bloat to Lambda
+        run: npm install --omit=dev --no-save
 
       - name: Zip Lambda Code
         if: steps.skip_check.outputs.lambda == 'true'
