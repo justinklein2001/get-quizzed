@@ -8,6 +8,7 @@ import { configureAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 configureAuth();
 
@@ -20,10 +21,24 @@ export default function DashboardPage() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
 
+  // Selection State
+  const [selectedLcOption, setSelectedLcOption] = useState<number | null>(null);
+  const [selectedResumeOption, setSelectedResumeOption] = useState<number | null>(null);
+  const [selectedTechOption, setSelectedTechOption] = useState<number | null>(null);
+
   useEffect(() => {
     checkUser();
     fetchHistory();
   }, []);
+
+  useEffect(() => {
+    // Reset selections when quizData changes
+    if (quizData) {
+      setSelectedLcOption(null);
+      setSelectedResumeOption(null);
+      setSelectedTechOption(null);
+    }
+  }, [quizData]);
 
   async function fetchHistory() {
     try {
@@ -363,8 +378,14 @@ export default function DashboardPage() {
                       {quizData.leetcode.ai_question.options.map((opt: string, i: number) => (
                         <Button 
                           key={i} 
-                          variant="outline" 
-                          className="justify-start h-auto py-2 text-left text-xs whitespace-normal border-blue-900/30 hover:bg-blue-900/20 hover:text-blue-300"
+                          variant={selectedLcOption === i ? "default" : "outline"}
+                          className={cn(
+                            "justify-start h-auto py-2 text-left text-xs whitespace-normal",
+                            selectedLcOption === i 
+                              ? "bg-blue-600 hover:bg-blue-500 border-transparent text-white" 
+                              : "border-blue-900/30 hover:bg-blue-900/20 hover:text-blue-300"
+                          )}
+                          onClick={() => setSelectedLcOption(i)}
                         >
                           {opt}
                         </Button>
@@ -392,7 +413,15 @@ export default function DashboardPage() {
                    <p className="text-sm text-foreground/90">{quizData.resume.mcq?.question}</p>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                       {quizData.resume.mcq?.options?.map((opt: string, i: number) => (
-                        <Button key={i} variant="secondary" className="justify-start h-auto py-2 text-xs text-left whitespace-normal">
+                        <Button 
+                          key={i} 
+                          variant={selectedResumeOption === i ? "default" : "secondary"}
+                          className={cn(
+                            "justify-start h-auto py-2 text-xs text-left whitespace-normal",
+                            selectedResumeOption === i && "bg-orange-600 hover:bg-orange-500 text-white"
+                          )}
+                          onClick={() => setSelectedResumeOption(i)}
+                        >
                           {opt}
                         </Button>
                       ))}
@@ -439,7 +468,15 @@ export default function DashboardPage() {
                    <p className="text-sm text-foreground/90">{quizData.technical.mcq?.question}</p>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                       {quizData.technical.mcq?.options?.map((opt: string, i: number) => (
-                        <Button key={i} variant="secondary" className="justify-start h-auto py-2 text-xs text-left whitespace-normal">
+                        <Button 
+                          key={i} 
+                          variant={selectedTechOption === i ? "default" : "secondary"}
+                          className={cn(
+                            "justify-start h-auto py-2 text-xs text-left whitespace-normal",
+                            selectedTechOption === i && "bg-indigo-600 hover:bg-indigo-500 text-white"
+                          )}
+                          onClick={() => setSelectedTechOption(i)}
+                        >
                           {opt}
                         </Button>
                       ))}
