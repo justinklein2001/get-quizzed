@@ -20,7 +20,14 @@ const TABLE_NAME = process.env.HISTORY_TABLE;
 
 // 1. DATABASE SYNC
 async function downloadDatabase() {
-  if (fs.existsSync(DB_PATH)) return; 
+  const tablePath = path.join(DB_PATH, "knowledge_base.lance");
+  if (fs.existsSync(tablePath)) {
+    console.log("✅ Database already exists at:", tablePath);
+    return;
+  }
+  
+  // Clean up potential partial downloads
+  if (fs.existsSync(DB_PATH)) fs.rmSync(DB_PATH, { recursive: true, force: true });
   fs.mkdirSync(DB_PATH, { recursive: true });
 
   console.log("📥 Downloading Knowledge Base...");
@@ -30,6 +37,9 @@ async function downloadDatabase() {
 
   for (const file of Contents) {
     if (file.Key.endsWith("/")) continue;
+    // file.Key is like "lancedb/knowledge_base.lance/..."
+    // We want it to be at "/tmp/lancedb/knowledge_base.lance/..."
+    // Since DB_PATH is "/tmp/lancedb", path.join("/tmp", file.Key) works perfect.
     const localPath = path.join("/tmp", file.Key);
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const getCmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: file.Key });
@@ -136,6 +146,10 @@ export const handler = async (event) => {
     await downloadDatabase();
     const db = await lancedb.connect(DB_PATH);
     const table = await db.openTable("knowledge_base");
+    
+    // Debug: Check data count
+    const rowCount = await table.countRows();
+    console.log(`📊 Table 'knowledge_base' loaded with ${rowCount} rows.`);
 
     // Fetch Candidates (Parallel & Independent Vectors)
     const [v1, v3] = await Promise.all([
