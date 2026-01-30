@@ -40,6 +40,7 @@ jobs:
           filters: |
             frontend:
               - 'frontend/**'
+              - '.github/workflows/deploy.yml'
 
       - name: Setup Node.js
         if: steps.skip_check.outputs.frontend == 'true'
