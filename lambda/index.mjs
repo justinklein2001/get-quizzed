@@ -160,7 +160,7 @@ export const handler = async (event) => {
     const [leetcodeRows, resumeRows, noteRows] = await Promise.all([
       table.search(v1).filter("category = 'leetcode'").limit(5).execute(),
       table.search(v1).filter("category = 'resume'").limit(5).execute(), // Fallback search, but we will handle empty below
-      table.search(v3).filter("category = 'note'").limit(5).execute()
+      table.search(v3).filter("category = 'note'").limit(5).toArray()
     ]);
 
     // Special Handling for Resume (Low Data Count)
@@ -168,7 +168,7 @@ export const handler = async (event) => {
     let finalResumeRows = resumeRows;
     if (resumeRows.length === 0) {
        console.log("⚠️ Resume vector search returned 0. Fetching fallback...");
-       finalResumeRows = await table.query().filter("category = 'resume'").limit(1).execute();
+       finalResumeRows = await table.query().filter("category = 'resume'").limit(1).toArray();
     }
 
     // Pick Randoms
