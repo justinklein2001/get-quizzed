@@ -62,6 +62,7 @@ jobs:
           # INJECT COGNITO VARS FOR BUILD TIME BAKING
           NEXT_PUBLIC_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_USER_POOL_ID }}
           NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_USER_POOL_CLIENT_ID }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
 
       - name: Configure AWS Credentials
         if: steps.skip_check.outputs.frontend == 'true'
