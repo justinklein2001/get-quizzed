@@ -64,21 +64,91 @@ async function getRandomVector() {
   return result.embedding;
 }
 
-// 3. GENERATE QUESTION
-async function generateQuestion(context, type) {
+// 3. GENERATE QUESTION (MCQ)
+async function generateMCQ(context, type) {
   const prompt = `
-You are a senior technical interviewer.
+You are a tough Senior Technical Interviewer at a top-tier tech company.
+Your goal is to test if the candidate deeply understands the concepts and can apply them like an Associate/Senior engineer.
 Context:
 ${context}
 
-Task: Generate 1 multiple-choice question based strictly on the context above.
+Task: Generate 1 challenging multiple-choice question based strictly on the context above. The question should test nuance, trade-offs, or best practices, not just basic definitions.
 Type: ${type} (e.g., LeetCode conceptual, Resume deep dive, or Technical knowledge).
 Return ONLY JSON. Format:
 {
   "question": "Question text",
   "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
   "answer": "A) ...",
-  "explanation": "Brief explanation"
+  "explanation": "Detailed explanation of why the correct answer is best and why others are suboptimal."
+}`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }]
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  return JSON.parse(raw.content[0].text);
+}
+
+// 4. GENERATE QUESTION (Open Ended)
+async function generateOpenEnded(context, type) {
+  const prompt = `
+You are a tough Senior Technical Interviewer at a top-tier tech company.
+Your goal is to test if the candidate can articulate their experience and technical concepts with the depth and confidence of an Associate/Senior engineer.
+Context:
+${context}
+
+Task: Generate 1 open-ended behavioral or technical question based on the context. The question should require the candidate to explain "why" and "how", discussing architectural trade-offs, scaling implications, or specific problem-solving methodologies.
+Type: ${type}.
+Return ONLY JSON. Format:
+{
+  "question": "Question text",
+  "guidelines": "Key technical points, architectural considerations, and communication style expected for a Senior-level answer."
+}`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      anthropic_version: "bedrock-2023-05-31",
+      max_tokens: 500,
+      messages: [{ role: "user", content: prompt }]
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  return JSON.parse(raw.content[0].text);
+}
+
+// 5. GENERATE FEEDBACK
+async function generateFeedback(payload) {
+  const { question, userAnswer, type, context } = payload;
+  
+  const prompt = `
+You are a tough Senior Technical Interviewer.
+The candidate has answered a ${type} question.
+Question: "${question}"
+Candidate Answer: "${userAnswer}"
+${type === 'MCQ' ? `Correct Answer: "${context.correctAnswer}"` : `Grading Guidelines: "${context.guidelines}"`}
+
+Task: Evaluate the candidate's answer.
+- If MCQ: explain why their choice is right/wrong and the nuance behind the correct answer.
+- If Open-Ended: critique the depth, clarity, and technical seniority of their response.
+- Provide constructive, actionable feedback to help them sound like a Senior Engineer.
+
+Return ONLY JSON. Format:
+{
+  "feedback": "Detailed feedback text...",
+  "score": "X/10",
+  "improvement_tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
 
   const response = await bedrock.send(new InvokeModelCommand({
@@ -103,6 +173,17 @@ export const handler = async (event) => {
 
   try {
     const route = event.routeKey || `${event.httpMethod} ${event.path}`; // Fallback
+
+    // === ROUTE: POST /submit (Feedback) ===
+    if (route === "POST /submit") {
+      const body = JSON.parse(event.body);
+      const feedback = await generateFeedback(body);
+      return {
+        statusCode: 200,
+        headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+        body: JSON.stringify(feedback)
+      };
+    }
 
     // === ROUTE: GET /history (Public) ===
     if (route === "GET /history") {
@@ -197,25 +278,29 @@ export const handler = async (event) => {
     }
 
     // Generate AI Questions
-    const [q1, q2, q3] = await Promise.all([
-      generateQuestion(lc.text, "LeetCode Strategy"),
-      generateQuestion(res.text, "Resume Experience"),
-      generateQuestion(note.text, "Technical Knowledge")
+    const [q1, q2_mcq, q2_open, q3_mcq, q3_open] = await Promise.all([
+      generateMCQ(lc.text, "LeetCode Strategy"),
+      generateMCQ(res.text, "Resume Experience"),
+      generateOpenEnded(res.text, "Resume Experience"),
+      generateMCQ(note.text, "Technical Knowledge"),
+      generateOpenEnded(note.text, "Technical Knowledge")
     ]);
 
     const quiz = {
       date: today,
       leetcode: {
-        ...JSON.parse(lc.text), // Original LeetCode JSON
+        problem: JSON.parse(lc.text), // Original LeetCode JSON nested
         ai_question: q1
       },
       resume: {
         context: res.metadata,
-        ai_question: q2
+        mcq: q2_mcq,
+        open_ended: q2_open
       },
       technical: {
         context: note.metadata,
-        ai_question: q3
+        mcq: q3_mcq,
+        open_ended: q3_open
       }
     };
 

@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { configureAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud } from 'lucide-react';
+import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink } from 'lucide-react';
 
 configureAuth();
 
@@ -272,64 +272,198 @@ export default function DashboardPage() {
               <Button variant="ghost" onClick={() => setQuizData(null)}>Close View</Button>
             </div>
             
+            {/* LEETCODE SECTION */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-400">LeetCode Challenge</CardTitle>
-                <CardDescription>{quizData.leetcode.title}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-slate-900 text-slate-200 p-4 rounded-md font-mono text-sm overflow-auto border border-slate-800">
-                  {JSON.stringify(quizData.leetcode, null, 2)}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-purple-400">LeetCode Challenge</CardTitle>
+                    {quizData.leetcode.problem?.url && (
+                      <Link href={quizData.leetcode.problem.url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-purple-400">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                  {quizData.leetcode.problem?.difficulty && (
+                    <span className={`px-2 py-1 rounded text-xs font-bold border ${
+                      quizData.leetcode.problem.difficulty === 'Easy' ? 'border-green-500/50 text-green-400 bg-green-500/10' :
+                      quizData.leetcode.problem.difficulty === 'Medium' ? 'border-yellow-500/50 text-yellow-400 bg-yellow-500/10' :
+                      'border-red-500/50 text-red-400 bg-red-500/10'
+                    }`}>
+                      {quizData.leetcode.problem.difficulty}
+                    </span>
+                  )}
                 </div>
-                <div className="bg-blue-900/20 p-4 rounded-md border border-blue-900/50">
-                  <h4 className="font-semibold text-blue-300 mb-2">AI Strategy Question:</h4>
-                  <p className="text-blue-200">{quizData.leetcode.ai_question?.question}</p>
+                <CardDescription>{quizData.leetcode.problem?.title}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Problem Description */}
+                <div className="space-y-4">
+                  <div className="text-sm text-foreground/90 whitespace-pre-wrap">
+                    {quizData.leetcode.problem?.description || quizData.leetcode.problem?.question || "No description available."}
+                  </div>
+                  
+                  {/* Examples */}
+                  {quizData.leetcode.problem?.examples && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-muted-foreground">Examples:</h4>
+                      {Array.isArray(quizData.leetcode.problem.examples) ? (
+                         quizData.leetcode.problem.examples.map((ex: any, i: number) => (
+                          <div key={i} className="bg-muted/50 p-3 rounded-md border border-border/50 font-mono text-xs">
+                            <div className="flex gap-2">
+                              <span className="font-bold text-blue-400">Input:</span>
+                              <span>{ex.input}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <span className="font-bold text-green-400">Output:</span>
+                              <span>{ex.output}</span>
+                            </div>
+                            {ex.explanation && (
+                               <div className="flex gap-2 mt-1 text-muted-foreground">
+                                <span className="italic">Note:</span>
+                                <span>{ex.explanation}</span>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-muted/50 p-3 rounded-md border border-border/50 font-mono text-xs">
+                           {JSON.stringify(quizData.leetcode.problem.examples)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Constraints */}
+                  {quizData.leetcode.problem?.constraints && (
+                     <div className="space-y-2">
+                       <h4 className="text-sm font-semibold text-muted-foreground">Constraints:</h4>
+                       <ul className="list-disc pl-5 text-xs font-mono text-muted-foreground">
+                         {Array.isArray(quizData.leetcode.problem.constraints) 
+                            ? quizData.leetcode.problem.constraints.map((c: string, i: number) => <li key={i}>{c}</li>)
+                            : <li>{JSON.stringify(quizData.leetcode.problem.constraints)}</li>
+                         }
+                       </ul>
+                     </div>
+                  )}
+                </div>
+
+                <div className="h-px bg-border/50" />
+
+                {/* AI Question */}
+                <div className="bg-blue-900/10 p-4 rounded-md border border-blue-900/30">
+                  <h4 className="font-semibold text-blue-400 mb-2 text-sm">Strategy Check</h4>
+                  <p className="text-blue-200/90 text-sm mb-3">{quizData.leetcode.ai_question?.question}</p>
                   {quizData.leetcode.ai_question?.options && (
-                    <ul className="mt-2 list-disc pl-5 text-sm text-blue-300">
+                    <div className="grid grid-cols-1 gap-2">
                       {quizData.leetcode.ai_question.options.map((opt: string, i: number) => (
-                        <li key={i}>{opt}</li>
+                        <Button 
+                          key={i} 
+                          variant="outline" 
+                          className="justify-start h-auto py-2 text-left text-xs whitespace-normal border-blue-900/30 hover:bg-blue-900/20 hover:text-blue-300"
+                        >
+                          {opt}
+                        </Button>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               </CardContent>
             </Card>
 
+            {/* RESUME DEEP DIVE */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-orange-400">Resume Deep Dive</CardTitle>
+                <CardDescription>Generated based on your experience context.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-orange-900/20 p-4 rounded-md border border-orange-900/50">
-                  <h4 className="font-semibold text-orange-300 mb-2">AI Interviewer Asks:</h4>
-                  <p className="text-orange-200">{quizData.resume.ai_question?.question}</p>
-                    {quizData.resume.ai_question?.options && (
-                    <ul className="mt-2 list-disc pl-5 text-sm text-orange-300">
-                      {quizData.resume.ai_question.options.map((opt: string, i: number) => (
-                        <li key={i}>{opt}</li>
+              <CardContent className="space-y-6">
+                
+                {/* MCQ */}
+                <div className="space-y-3">
+                   <h4 className="font-semibold text-sm flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-orange-500"/>
+                     Multiple Choice
+                   </h4>
+                   <p className="text-sm text-foreground/90">{quizData.resume.mcq?.question}</p>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                      {quizData.resume.mcq?.options?.map((opt: string, i: number) => (
+                        <Button key={i} variant="secondary" className="justify-start h-auto py-2 text-xs text-left whitespace-normal">
+                          {opt}
+                        </Button>
                       ))}
-                    </ul>
-                  )}
+                   </div>
                 </div>
+
+                <div className="h-px bg-border/50" />
+
+                {/* Open Ended */}
+                <div className="space-y-3">
+                   <h4 className="font-semibold text-sm flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-orange-500"/>
+                     Open-Ended Scenario
+                   </h4>
+                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
+                     <p className="text-sm font-medium mb-4">{quizData.resume.open_ended?.question}</p>
+                     <textarea 
+                        className="w-full min-h-[100px] p-3 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                        placeholder="Type your answer here..."
+                     />
+                     <div className="flex justify-end mt-2">
+                        <Button size="sm">Submit Answer</Button>
+                     </div>
+                   </div>
+                </div>
+
               </CardContent>
             </Card>
 
+            {/* TECHNICAL KNOWLEDGE */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-indigo-400">Technical Knowledge</CardTitle>
+                <CardDescription>System design and concept verification.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                  <div className="bg-indigo-900/20 p-4 rounded-md border border-indigo-900/50">
-                  <h4 className="font-semibold text-indigo-300 mb-2">AI Knowledge Check:</h4>
-                  <p className="text-indigo-200">{quizData.technical.ai_question?.question}</p>
-                    {quizData.technical.ai_question?.options && (
-                    <ul className="mt-2 list-disc pl-5 text-sm text-indigo-300">
-                      {quizData.technical.ai_question.options.map((opt: string, i: number) => (
-                        <li key={i}>{opt}</li>
+              <CardContent className="space-y-6">
+                
+                 {/* MCQ */}
+                 <div className="space-y-3">
+                   <h4 className="font-semibold text-sm flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-indigo-500"/>
+                     Multiple Choice
+                   </h4>
+                   <p className="text-sm text-foreground/90">{quizData.technical.mcq?.question}</p>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                      {quizData.technical.mcq?.options?.map((opt: string, i: number) => (
+                        <Button key={i} variant="secondary" className="justify-start h-auto py-2 text-xs text-left whitespace-normal">
+                          {opt}
+                        </Button>
                       ))}
-                    </ul>
-                  )}
+                   </div>
                 </div>
+
+                <div className="h-px bg-border/50" />
+
+                {/* Open Ended */}
+                <div className="space-y-3">
+                   <h4 className="font-semibold text-sm flex items-center gap-2">
+                     <span className="w-2 h-2 rounded-full bg-indigo-500"/>
+                     Open-Ended Scenario
+                   </h4>
+                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
+                     <p className="text-sm font-medium mb-4">{quizData.technical.open_ended?.question}</p>
+                     <textarea 
+                        className="w-full min-h-[100px] p-3 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                        placeholder="Explain your reasoning..."
+                     />
+                     <div className="flex justify-end mt-2">
+                        <Button size="sm">Submit Answer</Button>
+                     </div>
+                   </div>
+                </div>
+
               </CardContent>
             </Card>
 
