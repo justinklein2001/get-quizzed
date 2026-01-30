@@ -163,12 +163,18 @@ export const handler = async (event) => {
       table.search(v3).filter("category = 'note'").limit(5).toArray()
     ]);
 
+    // Debugging logs for search results
+    console.log(`Debug: leetcodeRows.length: ${leetcodeRows.length}`);
+    console.log(`Debug: resumeRows.length (initial): ${resumeRows.length}`);
+    console.log(`Debug: noteRows.length: ${noteRows.length}`);
+
     // Special Handling for Resume (Low Data Count)
     // If vector search misses the single resume file, just grab any resume row
     let finalResumeRows = resumeRows;
     if (resumeRows.length === 0) {
        console.log("⚠️ Resume vector search returned 0. Fetching fallback...");
        finalResumeRows = await table.query().filter("category = 'resume'").limit(1).toArray();
+       console.log(`Debug: finalResumeRows.length (after fallback): ${finalResumeRows.length}`);
     }
 
     // Pick Randoms
