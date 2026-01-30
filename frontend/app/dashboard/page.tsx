@@ -53,7 +53,7 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  const generateDailyQuiz = async () => {
+  const generateDailyQuiz = async (force: boolean = false) => {
     setGenerating(true);
     setError('');
     try {
@@ -66,7 +66,7 @@ export default function DashboardPage() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ topic: "Daily Drill" })
+        body: JSON.stringify({ topic: "Daily Drill", force })
       });
 
       if (!response.ok) {
@@ -146,6 +146,8 @@ export default function DashboardPage() {
       </Card>
     );
   };
+
+  const isTodayCompleted = history.some(h => h.date === new Date().toISOString().split('T')[0]);
 
   if (loading) {
     return (
@@ -480,10 +482,19 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               {error && <p className="text-red-600 mb-4 text-sm">{error}</p>}
-              <Button size="lg" onClick={generateDailyQuiz} disabled={generating} className="w-full sm:w-auto">
-                {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Terminal className="mr-2 h-4 w-4"/>}
-                {generating ? "Generating with Claude..." : "Generate New Quiz"}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button size="lg" onClick={() => generateDailyQuiz(false)} disabled={generating || isTodayCompleted} className="w-full sm:w-auto">
+                  {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Terminal className="mr-2 h-4 w-4"/>}
+                  {generating ? "Generating..." : "Generate New Quiz"}
+                </Button>
+                
+                {isTodayCompleted && (
+                   <Button size="lg" variant="secondary" onClick={() => generateDailyQuiz(true)} disabled={generating} className="w-full sm:w-auto bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/50">
+                    <Loader2 className={`mr-2 h-4 w-4 ${generating ? 'animate-spin' : 'hidden'}`}/>
+                    Regenerate Today's Quiz
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

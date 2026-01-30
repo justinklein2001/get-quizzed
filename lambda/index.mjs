@@ -207,19 +207,34 @@ export const handler = async (event) => {
     
     // A. CHECK HISTORY (Idempotency)
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const historyParams = {
-      TableName: TABLE_NAME,
-      Key: { pk: "DAILY_QUIZ", sk: today }
-    };
+    let force = false;
     
-    const { Item } = await ddb.send(new GetCommand(historyParams));
-    if (Item) {
-      console.log("✅ Returning cached quiz for today.");
-      return {
-        statusCode: 200,
-        headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
-        body: JSON.stringify(Item.quiz)
+    if (event.body) {
+      try {
+        const body = JSON.parse(event.body);
+        if (body.force) force = true;
+      } catch (e) {
+        // ignore JSON parse error on body if it's not valid JSON
+      }
+    }
+
+    if (force) {
+      console.log("⚠️ Force generation requested. Skipping cache check.");
+    } else {
+      const historyParams = {
+        TableName: TABLE_NAME,
+        Key: { pk: "DAILY_QUIZ", sk: today }
       };
+      
+      const { Item } = await ddb.send(new GetCommand(historyParams));
+      if (Item) {
+        console.log("✅ Returning cached quiz for today.");
+        return {
+          statusCode: 200,
+          headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+          body: JSON.stringify(Item.quiz)
+        };
+      }
     }
 
     // B. GENERATE NEW QUIZ
