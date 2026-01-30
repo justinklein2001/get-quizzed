@@ -64,6 +64,28 @@ async function getRandomVector() {
   return result.embedding;
 }
 
+// HELPER: Clean LLM Response
+function cleanResponse(text) {
+  // Remove markdown code blocks if present
+  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    return JSON.parse(jsonMatch[1]);
+  }
+  // Remove generic code blocks if present
+  const codeMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+  if (codeMatch) {
+    return JSON.parse(codeMatch[1]);
+  }
+  // Try parsing strictly the substring between the first { and last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    return JSON.parse(text.substring(firstBrace, lastBrace + 1));
+  }
+  // Fallback: Try parsing raw text
+  return JSON.parse(text);
+}
+
 // 3. GENERATE QUESTION (MCQ)
 async function generateMCQ(context, type) {
   const prompt = `
@@ -94,7 +116,7 @@ Return ONLY JSON. Format:
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return JSON.parse(raw.content[0].text);
+  return cleanResponse(raw.content[0].text);
 }
 
 // 4. GENERATE QUESTION (Open Ended)
@@ -125,7 +147,7 @@ Return ONLY JSON. Format:
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return JSON.parse(raw.content[0].text);
+  return cleanResponse(raw.content[0].text);
 }
 
 // 5. GENERATE FEEDBACK
@@ -163,7 +185,7 @@ Return ONLY JSON. Format:
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return JSON.parse(raw.content[0].text);
+  return cleanResponse(raw.content[0].text);
 }
 
 export const handler = async (event) => {
