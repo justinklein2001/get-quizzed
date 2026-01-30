@@ -156,17 +156,23 @@ export const handler = async (event) => {
       getRandomVector(),
       getRandomVector()
     ]);
+    console.log(`Debug: v1 length: ${v1?.length}, v3 length: ${v3?.length}`); // Log vector lengths
 
-    const [leetcodeRows, resumeRows, noteRows] = await Promise.all([
-      table.search(v1).filter("category = 'leetcode'").limit(5).execute(),
-      table.search(v1).filter("category = 'resume'").limit(5).execute(), // Fallback search, but we will handle empty below
+    const [leetcodeResult, resumeResult, noteResult] = await Promise.all([
+      table.search(v1).filter("category = 'leetcode'").limit(5).toArray(),
+      table.search(v1).filter("category = 'resume'").limit(5).toArray(),
       table.search(v3).filter("category = 'note'").limit(5).toArray()
     ]);
 
+    // Assign results and log them
+    const leetcodeRows = leetcodeResult;
+    const resumeRows = resumeResult;
+    const noteRows = noteResult;
+
     // Debugging logs for search results
-    console.log(`Debug: leetcodeRows.length: ${leetcodeRows.length}`);
-    console.log(`Debug: resumeRows.length (initial): ${resumeRows.length}`);
-    console.log(`Debug: noteRows.length: ${noteRows.length}`);
+    console.log(`Debug: leetcodeRows.length: ${leetcodeRows?.length}`);
+    console.log(`Debug: resumeRows.length (initial): ${resumeRows?.length}`);
+    console.log(`Debug: noteRows.length: ${noteRows?.length}`);
 
     // Special Handling for Resume (Low Data Count)
     // If vector search misses the single resume file, just grab any resume row
