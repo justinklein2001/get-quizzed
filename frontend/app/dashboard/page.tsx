@@ -70,7 +70,14 @@ export default function DashboardPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
+        let errorMessage = `API Error: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) errorMessage = errorData.error;
+        } catch (ignored) {
+          // If JSON parsing fails, stick with the generic statusText
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

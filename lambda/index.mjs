@@ -136,19 +136,39 @@ export const handler = async (event) => {
     await downloadDatabase();
     const db = await lancedb.connect(DB_PATH);
     const table = await db.openTable("knowledge_base");
-    const queryVec = await getRandomVector();
 
-    // Fetch Candidates
-    const leetcodeRows = await table.search(queryVec).filter("category = 'leetcode'").limit(5).execute();
-    const resumeRows = await table.search(queryVec).filter("category = 'resume'").limit(5).execute();
-    const noteRows = await table.search(queryVec).filter("category = 'note'").limit(5).execute();
+    // Fetch Candidates (Parallel & Independent Vectors)
+    const [v1, v3] = await Promise.all([
+      getRandomVector(),
+      getRandomVector()
+    ]);
+
+    const [leetcodeRows, resumeRows, noteRows] = await Promise.all([
+      table.search(v1).filter("category = 'leetcode'").limit(5).execute(),
+      table.search(v1).filter("category = 'resume'").limit(5).execute(), // Fallback search, but we will handle empty below
+      table.search(v3).filter("category = 'note'").limit(5).execute()
+    ]);
+
+    // Special Handling for Resume (Low Data Count)
+    // If vector search misses the single resume file, just grab any resume row
+    let finalResumeRows = resumeRows;
+    if (resumeRows.length === 0) {
+       console.log("⚠️ Resume vector search returned 0. Fetching fallback...");
+       finalResumeRows = await table.query().filter("category = 'resume'").limit(1).execute();
+    }
 
     // Pick Randoms
     const lc = leetcodeRows[Math.floor(Math.random() * leetcodeRows.length)];
-    const res = resumeRows[Math.floor(Math.random() * resumeRows.length)];
+    const res = finalResumeRows[Math.floor(Math.random() * finalResumeRows.length)];
     const note = noteRows[Math.floor(Math.random() * noteRows.length)];
 
-    if (!lc || !res || !note) throw new Error("Insufficient data in Vector DB");
+    if (!lc || !res || !note) {
+      const missing = [];
+      if (!lc) missing.push("leetcode");
+      if (!res) missing.push("resume");
+      if (!note) missing.push("note");
+      throw new Error(`Insufficient data in Vector DB for categories: ${missing.join(", ")}`);
+    }
 
     // Generate AI Questions
     const [q1, q2, q3] = await Promise.all([
