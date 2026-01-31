@@ -104,6 +104,7 @@ Return ONLY JSON. Format:
   "explanation": "Detailed explanation of why the correct answer is best and why others are suboptimal."
 }`;
 
+  if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
@@ -135,6 +136,7 @@ Return ONLY JSON. Format:
   "guidelines": "Key technical points, architectural considerations, and communication style expected for a Senior-level answer."
 }`;
 
+  if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
@@ -173,6 +175,7 @@ Return ONLY JSON. Format:
   "improvement_tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
 
+  if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
@@ -189,6 +192,15 @@ Return ONLY JSON. Format:
 }
 
 export const handler = async (event) => {
+  // DEBUG: Check environment variable
+  console.log("Handler invoked.");
+  console.log("Environment BEDROCK_MODEL_ID exists:", !!process.env.BEDROCK_MODEL_ID);
+  if (process.env.BEDROCK_MODEL_ID) {
+    console.log("Environment BEDROCK_MODEL_ID length:", process.env.BEDROCK_MODEL_ID.length);
+  } else {
+    console.error("CRITICAL: BEDROCK_MODEL_ID is missing from environment variables!");
+  }
+
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } };
   }
