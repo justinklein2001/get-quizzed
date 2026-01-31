@@ -106,19 +106,30 @@ Return ONLY JSON. Format:
 
   console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
+
+  // Llama 3 Formatting
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 500,
-      messages: [{ role: "user", content: prompt }]
+      prompt: llamaPrompt,
+      max_gen_len: 1024,
+      temperature: 0.5,
+      top_p: 0.9
     })
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return cleanResponse(raw.content[0].text);
+  // Llama 3 returns { generation: "..." }
+  return cleanResponse(raw.generation);
 }
 
 // 4. GENERATE QUESTION (Open Ended)
@@ -139,19 +150,30 @@ Return ONLY JSON. Format:
 
   console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
+
+  // Llama 3 Formatting
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 500,
-      messages: [{ role: "user", content: prompt }]
+      prompt: llamaPrompt,
+      max_gen_len: 1024,
+      temperature: 0.5,
+      top_p: 0.9
     })
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return cleanResponse(raw.content[0].text);
+  // Llama 3 returns { generation: "..." }
+  return cleanResponse(raw.generation);
 }
 
 // 5. GENERATE FEEDBACK
@@ -179,19 +201,30 @@ Return ONLY JSON. Format:
 
   console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
+
+  // Llama 3 Formatting
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
-      anthropic_version: "bedrock-2023-05-31",
-      max_tokens: 500,
-      messages: [{ role: "user", content: prompt }]
+      prompt: llamaPrompt,
+      max_gen_len: 1024,
+      temperature: 0.5,
+      top_p: 0.9
     })
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  return cleanResponse(raw.content[0].text);
+  // Llama 3 returns { generation: "..." }
+  return cleanResponse(raw.generation);
 }
 
 export const handler = async (event) => {
