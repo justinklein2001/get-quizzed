@@ -162,3 +162,10 @@ jobs:
 
           # 3. Cleanup S3 (Prevent public access)
           aws s3 rm s3://${{ secrets.BUCKET_NAME }}/deployments/function.zip
+
+      - name: Update Lambda Environment Variables
+        if: steps.skip_check.outputs.lambda == 'true'
+        run: |
+            aws lambda update-function-configuration \
+              --function-name ${{ secrets.LAMBDA_NAME }} \
+              --environment "Variables={KB_BUCKET_NAME=${{ secrets.KB_BUCKET_NAME }},HISTORY_TABLE=${{ secrets.HISTORY_TABLE }},BEDROCK_MODEL_ID=${{ secrets.BEDROCK_MODEL_ID }}}"

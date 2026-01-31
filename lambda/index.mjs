@@ -105,7 +105,7 @@ Return ONLY JSON. Format:
 }`;
 
   const response = await bedrock.send(new InvokeModelCommand({
-    modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+    modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
@@ -136,7 +136,7 @@ Return ONLY JSON. Format:
 }`;
 
   const response = await bedrock.send(new InvokeModelCommand({
-    modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+    modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
@@ -174,7 +174,7 @@ Return ONLY JSON. Format:
 }`;
 
   const response = await bedrock.send(new InvokeModelCommand({
-    modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+    modelId: process.env.BEDROCK_MODEL_ID,
     contentType: "application/json",
     accept: "application/json",
     body: JSON.stringify({
