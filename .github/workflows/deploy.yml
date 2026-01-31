@@ -166,6 +166,9 @@ jobs:
       - name: Update Lambda Environment Variables
         if: steps.skip_check.outputs.lambda == 'true'
         run: |
+            # Wait for the code update to finish processing
+            aws lambda wait function-updated --function-name ${{ secrets.LAMBDA_NAME }}
+
             aws lambda update-function-configuration \
               --function-name ${{ secrets.LAMBDA_NAME }} \
               --environment "Variables={KB_BUCKET_NAME=${{ secrets.KB_BUCKET_NAME }},HISTORY_TABLE=${{ secrets.HISTORY_TABLE }},BEDROCK_MODEL_ID=${{ secrets.BEDROCK_MODEL_ID }}}"
