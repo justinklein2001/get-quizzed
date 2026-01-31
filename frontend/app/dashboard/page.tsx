@@ -1,5 +1,6 @@
 'use client';
 
+import 'regenerator-runtime/runtime';
 import { useEffect, useState } from 'react';
 import { getCurrentUser, fetchAuthSession, signOut } from 'aws-amplify/auth';
 import { useRouter } from 'next/navigation';
@@ -7,8 +8,9 @@ import Link from 'next/link';
 import { configureAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink } from 'lucide-react';
+import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink, Mic, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 configureAuth();
 
@@ -25,6 +27,76 @@ export default function DashboardPage() {
   const [selectedLcOption, setSelectedLcOption] = useState<number | null>(null);
   const [selectedResumeOption, setSelectedResumeOption] = useState<number | null>(null);
   const [selectedTechOption, setSelectedTechOption] = useState<number | null>(null);
+
+  const getAnswerIndex = (answerStr: string) => {
+    if (!answerStr) return -1;
+    const firstChar = answerStr.trim().charAt(0).toUpperCase();
+    return firstChar.charCodeAt(0) - 65; // 'A' -> 0, 'B' -> 1
+  };
+
+  const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: { onTranscriptChange: (text: string) => void, placeholder: string, ringColor: string }) => {
+    const {
+      transcript,
+      listening,
+      browserSupportsSpeechRecognition,
+      resetTranscript
+    } = useSpeechRecognition();
+    
+    const [textValue, setTextValue] = useState("");
+
+    useEffect(() => {
+        if (listening) {
+            setTextValue(transcript);
+        }
+    }, [transcript, listening]);
+
+    if (!browserSupportsSpeechRecognition) {
+      return (
+         <textarea 
+            className={`w-full min-h-[100px] p-3 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-${ringColor}-500/50`}
+            placeholder={placeholder}
+            onChange={(e) => onTranscriptChange(e.target.value)}
+         />
+      );
+    }
+
+    const toggleListening = () => {
+        if (listening) {
+            SpeechRecognition.stopListening();
+        } else {
+            resetTranscript();
+            SpeechRecognition.startListening({ continuous: true });
+        }
+    };
+
+    return (
+        <div className="relative w-full">
+            <textarea
+                className={`w-full min-h-25 p-3 pr-12 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-${ringColor}-500/50`}
+                placeholder={listening ? "Listening..." : placeholder}
+                value={textValue}
+                onChange={(e) => {
+                    setTextValue(e.target.value);
+                    onTranscriptChange(e.target.value);
+                }}
+            />
+            <Button
+                variant={listening ? "destructive" : "ghost"}
+                size="icon"
+                className="absolute right-2 bottom-2 h-8 w-8"
+                onClick={toggleListening}
+                title={listening ? "Stop Dictation" : "Start Dictation"}
+            >
+                {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4 text-muted-foreground" />}
+            </Button>
+             {listening && (
+                <span className="absolute right-12 bottom-3 text-xs text-red-500 animate-pulse">
+                    Recording...
+                </span>
+            )}
+        </div>
+    );
+  };
 
   useEffect(() => {
     checkUser();
@@ -375,21 +447,40 @@ export default function DashboardPage() {
                   <p className="text-blue-200/90 text-sm mb-3">{quizData.leetcode.ai_question?.question}</p>
                   {quizData.leetcode.ai_question?.options && (
                     <div className="grid grid-cols-1 gap-2">
-                      {quizData.leetcode.ai_question.options.map((opt: string, i: number) => (
-                        <Button 
-                          key={i} 
-                          variant={selectedLcOption === i ? "default" : "outline"}
-                          className={cn(
-                            "justify-start h-auto py-2 text-left text-xs whitespace-normal",
-                            selectedLcOption === i 
-                              ? "bg-blue-600 hover:bg-blue-500 border-transparent text-white" 
-                              : "border-blue-900/30 hover:bg-blue-900/20 hover:text-blue-300"
-                          )}
-                          onClick={() => setSelectedLcOption(i)}
-                        >
-                          {opt}
-                        </Button>
-                      ))}
+                      {quizData.leetcode.ai_question.options.map((opt: string, i: number) => {
+                        const correctIndex = getAnswerIndex(quizData.leetcode.ai_question.answer);
+                        const isRevealed = selectedLcOption !== null;
+                        let variantClass = "border-blue-900/30 hover:bg-blue-900/20 hover:text-blue-300";
+                        
+                        if (isRevealed) {
+                          if (i === correctIndex) variantClass = "bg-green-600/20 border-green-500 text-green-400 hover:bg-green-600/30";
+                          else if (selectedLcOption === i) variantClass = "bg-red-600/20 border-red-500 text-red-400 hover:bg-red-600/30";
+                          else variantClass = "opacity-50";
+                        } else if (selectedLcOption === i) {
+                          variantClass = "bg-blue-600 hover:bg-blue-500 border-transparent text-white";
+                        }
+
+                        return (
+                          <Button 
+                            key={i} 
+                            variant={"outline"}
+                            className={cn(
+                              "justify-start h-auto py-2 text-left text-xs whitespace-normal transition-all",
+                              variantClass
+                            )}
+                            onClick={() => !isRevealed && setSelectedLcOption(i)}
+                            disabled={isRevealed}
+                          >
+                            {opt}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedLcOption !== null && quizData.leetcode.ai_question?.explanation && (
+                    <div className="mt-4 p-3 bg-blue-950/30 rounded border border-blue-500/20 text-xs text-blue-200">
+                      <span className="font-bold text-blue-400">Explanation: </span>
+                      {quizData.leetcode.ai_question.explanation}
                     </div>
                   )}
                 </div>
@@ -412,20 +503,41 @@ export default function DashboardPage() {
                    </h4>
                    <p className="text-sm text-foreground/90">{quizData.resume.mcq?.question}</p>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                      {quizData.resume.mcq?.options?.map((opt: string, i: number) => (
-                        <Button 
-                          key={i} 
-                          variant={selectedResumeOption === i ? "default" : "secondary"}
-                          className={cn(
-                            "justify-start h-auto py-2 text-xs text-left whitespace-normal",
-                            selectedResumeOption === i && "bg-orange-600 hover:bg-orange-500 text-white"
-                          )}
-                          onClick={() => setSelectedResumeOption(i)}
-                        >
-                          {opt}
-                        </Button>
-                      ))}
+                      {quizData.resume.mcq?.options?.map((opt: string, i: number) => {
+                        const correctIndex = getAnswerIndex(quizData.resume.mcq.answer);
+                        const isRevealed = selectedResumeOption !== null;
+                        let variantClass = "";
+
+                        if (isRevealed) {
+                          if (i === correctIndex) variantClass = "bg-green-600 hover:bg-green-500 text-white ring-2 ring-green-400";
+                          else if (selectedResumeOption === i) variantClass = "bg-red-600 hover:bg-red-500 text-white";
+                          else variantClass = "opacity-50";
+                        } else if (selectedResumeOption === i) {
+                          variantClass = "bg-orange-600 hover:bg-orange-500 text-white";
+                        }
+
+                        return (
+                          <Button 
+                            key={i} 
+                            variant={isRevealed && i === correctIndex ? "default" : (selectedResumeOption === i ? "default" : "secondary")}
+                            className={cn(
+                              "justify-start h-auto py-2 text-xs text-left whitespace-normal",
+                              variantClass
+                            )}
+                            onClick={() => !isRevealed && setSelectedResumeOption(i)}
+                            disabled={isRevealed}
+                          >
+                            {opt}
+                          </Button>
+                        );
+                      })}
                    </div>
+                   {selectedResumeOption !== null && quizData.resume.mcq?.explanation && (
+                    <div className="mt-4 p-3 bg-orange-950/30 rounded border border-orange-500/20 text-xs text-orange-200">
+                      <span className="font-bold text-orange-400">Explanation: </span>
+                      {quizData.resume.mcq.explanation}
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-px bg-border/50" />
@@ -438,9 +550,10 @@ export default function DashboardPage() {
                    </h4>
                    <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
                      <p className="text-sm font-medium mb-4">{quizData.resume.open_ended?.question}</p>
-                     <textarea 
-                        className="w-full min-h-[100px] p-3 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-                        placeholder="Type your answer here..."
+                     <DictationButton 
+                        placeholder="Type or dictate your answer..." 
+                        onTranscriptChange={(val) => console.log("Resume Answer:", val)}
+                        ringColor="orange"
                      />
                      <div className="flex justify-end mt-2">
                         <Button size="sm">Submit Answer</Button>
@@ -467,20 +580,41 @@ export default function DashboardPage() {
                    </h4>
                    <p className="text-sm text-foreground/90">{quizData.technical.mcq?.question}</p>
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                      {quizData.technical.mcq?.options?.map((opt: string, i: number) => (
-                        <Button 
-                          key={i} 
-                          variant={selectedTechOption === i ? "default" : "secondary"}
-                          className={cn(
-                            "justify-start h-auto py-2 text-xs text-left whitespace-normal",
-                            selectedTechOption === i && "bg-indigo-600 hover:bg-indigo-500 text-white"
-                          )}
-                          onClick={() => setSelectedTechOption(i)}
-                        >
-                          {opt}
-                        </Button>
-                      ))}
+                      {quizData.technical.mcq?.options?.map((opt: string, i: number) => {
+                        const correctIndex = getAnswerIndex(quizData.technical.mcq.answer);
+                        const isRevealed = selectedTechOption !== null;
+                        let variantClass = "";
+
+                        if (isRevealed) {
+                          if (i === correctIndex) variantClass = "bg-green-600 hover:bg-green-500 text-white ring-2 ring-green-400";
+                          else if (selectedTechOption === i) variantClass = "bg-red-600 hover:bg-red-500 text-white";
+                          else variantClass = "opacity-50";
+                        } else if (selectedTechOption === i) {
+                          variantClass = "bg-indigo-600 hover:bg-indigo-500 text-white";
+                        }
+
+                        return (
+                          <Button 
+                            key={i} 
+                            variant={isRevealed && i === correctIndex ? "default" : (selectedTechOption === i ? "default" : "secondary")}
+                            className={cn(
+                              "justify-start h-auto py-2 text-xs text-left whitespace-normal",
+                              variantClass
+                            )}
+                            onClick={() => !isRevealed && setSelectedTechOption(i)}
+                            disabled={isRevealed}
+                          >
+                            {opt}
+                          </Button>
+                        );
+                      })}
                    </div>
+                   {selectedTechOption !== null && quizData.technical.mcq?.explanation && (
+                    <div className="mt-4 p-3 bg-indigo-950/30 rounded border border-indigo-500/20 text-xs text-indigo-200">
+                      <span className="font-bold text-indigo-400">Explanation: </span>
+                      {quizData.technical.mcq.explanation}
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-px bg-border/50" />
@@ -493,9 +627,10 @@ export default function DashboardPage() {
                    </h4>
                    <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
                      <p className="text-sm font-medium mb-4">{quizData.technical.open_ended?.question}</p>
-                     <textarea 
-                        className="w-full min-h-[100px] p-3 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                        placeholder="Explain your reasoning..."
+                     <DictationButton 
+                        placeholder="Explain your reasoning..." 
+                        onTranscriptChange={(val) => console.log("Technical Answer:", val)}
+                        ringColor="indigo"
                      />
                      <div className="flex justify-end mt-2">
                         <Button size="sm">Submit Answer</Button>
