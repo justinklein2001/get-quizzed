@@ -104,6 +104,7 @@ Return ONLY JSON. Format:
   "explanation": "Detailed explanation of why the correct answer is best and why others are suboptimal."
 }`;
 
+  console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
@@ -136,6 +137,7 @@ Return ONLY JSON. Format:
   "guidelines": "Key technical points, architectural considerations, and communication style expected for a Senior-level answer."
 }`;
 
+  console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
@@ -175,6 +177,7 @@ Return ONLY JSON. Format:
   "improvement_tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
 
+  console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
   if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
   const response = await bedrock.send(new InvokeModelCommand({
     modelId: process.env.BEDROCK_MODEL_ID,
