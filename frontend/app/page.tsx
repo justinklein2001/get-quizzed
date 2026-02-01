@@ -3,37 +3,39 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NavBar } from "@/components/NavBar";
 import { Database, Server, Code, Lock } from "lucide-react";
 
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
       {/* Header / Navigation */}
-      <header className="flex w-full items-center justify-between px-8 py-6 border-b border-border bg-card/50 backdrop-blur-sm">
-        <Link href="https://justinklein.ca" target="_blank" className="text-xl font-bold tracking-tight hover:opacity-80 transition-opacity">
-          Justin Klein <span className="text-muted-foreground font-normal">| Portfolio</span>
-        </Link>
-        
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm">Dashboard</Button>
-          </Link>
-          <Link href="/login">
-            <Button variant="secondary" size="sm">
-              <Lock className="mr-2 h-4 w-4" /> Admin Login
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <NavBar
+        currentApp="quizzed"
+        rightContent={
+          <>
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm">
+                Dashboard
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button variant="secondary" size="sm">
+                <Lock className="mr-2 h-4 w-4" /> Admin Login
+              </Button>
+            </Link>
+          </>
+        }
+      />
 
       {/* Hero Section */}
       <main className="flex flex-1 flex-col items-center justify-center px-4 text-center py-20">
         <div className="max-w-3xl space-y-6">
-          <h1 className="text-5xl font-bold tracking-tight sm:text-7xl bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent pb-2">
+          <h1 className="text-5xl font-bold tracking-tight sm:text-7xl">
             Get Quizzed!
           </h1>
-          <h2 className="text-3xl tracking-tight sm:text-5xl bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent pb-2">
-            Keep technical skills sharp.
+          <h2 className="text-3xl tracking-tight sm:text-5xl">
+            Keep technical & communication skills sharp.
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             A serverless RAG application that generates personalized interview questions based on my resume, technical notes, and LeetCode history.

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink, Mic, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NavBar } from '@/components/NavBar';
 import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 
 configureAuth();
@@ -247,26 +248,32 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans text-foreground">
       {/* HEADER */}
-      <header className="flex w-full items-center justify-between px-8 py-6 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <Link href="https://justinklein.ca" target="_blank" className="text-xl font-bold tracking-tight hover:opacity-80 transition-opacity">
-          Justin Klein <span className="text-muted-foreground font-normal">| Portfolio</span>
-        </Link>
-        
-        <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="sm">Home</Button>
-          </Link>
-          {isAdmin ? (
-             <Button variant="outline" size="sm" onClick={handleSignOut}>
-               Sign Out
-             </Button>
-          ) : (
-             <Button variant="secondary" size="sm" onClick={() => router.push('/login')}>
-               <Lock className="mr-2 h-4 w-4"/> Admin Access
-             </Button>
-          )}
-        </div>
-      </header>
+      <NavBar
+        currentApp="quizzed"
+        className="sticky top-0 z-50"
+        rightContent={
+          <>
+            <Link href="/">
+              <Button variant="ghost" size="sm">
+                Home
+              </Button>
+            </Link>
+            {isAdmin ? (
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                Sign Out
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push('/login')}
+              >
+                <Lock className="mr-2 h-4 w-4" /> Admin Access
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <main className="flex-1 container mx-auto p-8 max-w-5xl space-y-8 pt-12">
         {/* PAGE TITLE */}
