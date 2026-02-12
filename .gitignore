@@ -2,4 +2,6 @@
 .env
 /infra/
 /lambda/node_modules/
+/lambda/local/.env
+/lambda/package-lock.json
 /lance

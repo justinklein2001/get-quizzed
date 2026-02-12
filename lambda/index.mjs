@@ -22,7 +22,7 @@ const TABLE_NAME = process.env.HISTORY_TABLE;
 async function downloadDatabase() {
   const tablePath = path.join(DB_PATH, "knowledge_base.lance");
   if (fs.existsSync(tablePath)) {
-    console.log("✅ Database already exists at:", tablePath);
+    console.log("Database already exists at:", tablePath);
     return;
   }
   
@@ -30,16 +30,13 @@ async function downloadDatabase() {
   if (fs.existsSync(DB_PATH)) fs.rmSync(DB_PATH, { recursive: true, force: true });
   fs.mkdirSync(DB_PATH, { recursive: true });
 
-  console.log("📥 Downloading Knowledge Base...");
+  console.log("Downloading Knowledge Base...");
   const listCmd = new ListObjectsV2Command({ Bucket: BUCKET_NAME, Prefix: "lancedb/" });
   const { Contents } = await s3.send(listCmd);
   if (!Contents) return;
 
   for (const file of Contents) {
     if (file.Key.endsWith("/")) continue;
-    // file.Key is like "lancedb/knowledge_base.lance/..."
-    // We want it to be at "/tmp/lancedb/knowledge_base.lance/..."
-    // Since DB_PATH is "/tmp/lancedb", path.join("/tmp", file.Key) works perfect.
     const localPath = path.join("/tmp", file.Key);
     fs.mkdirSync(path.dirname(localPath), { recursive: true });
     const getCmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: file.Key });
@@ -49,7 +46,7 @@ async function downloadDatabase() {
 }
 
 // 2. HELPER: Get Random Vector (Simulated)
-// Instead of true random, we embed a random word to "poke" different parts of the vector space
+// Instead of true random, embed a random word to "poke" different parts of the vector space
 async function getRandomVector() {
   const words = ["algorithm", "system design", "database", "network", "security", "react", "aws", "deploy", "scale"];
   const randomWord = words[Math.floor(Math.random() * words.length)];
@@ -66,24 +63,38 @@ async function getRandomVector() {
 
 // HELPER: Clean LLM Response
 function cleanResponse(text) {
-  // Remove markdown code blocks if present
+  // 1. Extract JSON from Markdown
+  let cleanText = text;
   const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
-    return JSON.parse(jsonMatch[1]);
+    cleanText = jsonMatch[1];
+  } else {
+    const codeMatch = text.match(/```\s*([\s\S]*?)\s*```/);
+    if (codeMatch) {
+      cleanText = codeMatch[1];
+    }
   }
-  // Remove generic code blocks if present
-  const codeMatch = text.match(/```\s*([\s\S]*?)\s*```/);
-  if (codeMatch) {
-    return JSON.parse(codeMatch[1]);
-  }
-  // Try parsing strictly the substring between the first { and last }
-  const firstBrace = text.indexOf('{');
-  const lastBrace = text.lastIndexOf('}');
+
+  // 2. Extract strictly between { and }
+  const firstBrace = cleanText.indexOf('{');
+  const lastBrace = cleanText.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace !== -1) {
-    return JSON.parse(text.substring(firstBrace, lastBrace + 1));
+    cleanText = cleanText.substring(firstBrace, lastBrace + 1);
   }
-  // Fallback: Try parsing raw text
-  return JSON.parse(text);
+
+  try {
+    return JSON.parse(cleanText);
+  } catch (e) {
+    // 3. Handle "Bad control character" error - Replace newlines with space.
+    console.log("JSON Parse failed, attempting to sanitize control characters...");
+    const sanitized = cleanText.replace(/[\n\r\t]/g, " ");
+    try {
+      return JSON.parse(sanitized);
+    } catch (e2) {
+      console.error("Failed to parse JSON after sanitization. Raw text:", text);
+      throw e; // Throw original error
+    }
+  }
 }
 
 // 3. GENERATE QUESTION (MCQ)
@@ -289,7 +300,7 @@ export const handler = async (event) => {
     }
 
     if (force) {
-      console.log("⚠️ Force generation requested. Skipping cache check.");
+      console.log("Force generation requested. Skipping cache check.");
     } else {
       const historyParams = {
         TableName: TABLE_NAME,
@@ -298,7 +309,7 @@ export const handler = async (event) => {
       
       const { Item } = await ddb.send(new GetCommand(historyParams));
       if (Item) {
-        console.log("✅ Returning cached quiz for today.");
+        console.log("Returning cached quiz for today.");
         return {
           statusCode: 200,
           headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
@@ -344,7 +355,7 @@ export const handler = async (event) => {
     // If vector search misses the single resume file, just grab any resume row
     let finalResumeRows = resumeRows;
     if (resumeRows.length === 0) {
-       console.log("⚠️ Resume vector search returned 0. Fetching fallback...");
+       console.log("Resume vector search returned 0. Fetching fallback...");
        finalResumeRows = await table.query().filter("category = 'resume'").limit(1).toArray();
        console.log(`Debug: finalResumeRows.length (after fallback): ${finalResumeRows.length}`);
     }

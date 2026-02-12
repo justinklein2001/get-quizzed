@@ -138,7 +138,7 @@ jobs:
         working-directory: ./lambda
         run: |
           # Zip everything recursively, excluding junk
-          zip -r function.zip . -x "*.zip" "lancedb/*" ".git*" "package-lock.json"
+          zip -r function.zip . -x "*.zip" "lancedb/*" ".git*" "package-lock.json" "local/*"
 
       - name: Configure AWS Credentials
         if: steps.skip_check.outputs.lambda == 'true'
