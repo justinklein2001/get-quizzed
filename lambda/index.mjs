@@ -1,7 +1,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { S3Client, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import * as lancedb from "@lancedb/lancedb";
 import fs from "fs";
 import path from "path";
@@ -147,16 +147,19 @@ ${prompt}
 async function generateOpenEnded(context, type) {
   const prompt = `
 You are a tough Senior Technical Interviewer at a top-tier tech company.
-Your goal is to test if the candidate can articulate their experience and technical concepts with the depth and confidence of an Associate/Senior engineer.
+Your goal is to test if the candidate can articulate their experience and technical concepts with the depth and confidence of a Senior engineer.
 Context:
 ${context}
 
-Task: Generate 1 open-ended behavioral or technical question based on the context. The question should require the candidate to explain "why" and "how", discussing architectural trade-offs, scaling implications, or specific problem-solving methodologies.
+Task: Generate 1 challenging open-ended behavioral or technical question based on the context. 
+- If this is a Resume question, ask about a specific challenge or situation that requires a STAR (Situation, Task, Action, Result) response, probing for their specific contribution and impact.
+- If this is a Technical question, require the candidate to explain "why" and "how", discussing architectural trade-offs, scaling implications, or specific problem-solving methodologies.
+
 Type: ${type}.
 Return ONLY JSON. Format:
 {
   "question": "Question text",
-  "guidelines": "Key technical points, architectural considerations, and communication style expected for a Senior-level answer."
+  "guidelines": "Key technical points, architectural considerations, and STAR format elements expected for a Senior-level answer."
 }`;
 
   console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
@@ -192,22 +195,24 @@ async function generateFeedback(payload) {
   const { question, userAnswer, type, context } = payload;
   
   const prompt = `
-You are a tough Senior Technical Interviewer.
+You are a tough Senior Technical Interviewer at a top-tier tech company.
 The candidate has answered a ${type} question.
 Question: "${question}"
 Candidate Answer: "${userAnswer}"
 ${type === 'MCQ' ? `Correct Answer: "${context.correctAnswer}"` : `Grading Guidelines: "${context.guidelines}"`}
 
-Task: Evaluate the candidate's answer.
-- If MCQ: explain why their choice is right/wrong and the nuance behind the correct answer.
-- If Open-Ended: critique the depth, clarity, and technical seniority of their response.
-- Provide constructive, actionable feedback to help them sound like a Senior Engineer.
+Task: Evaluate the candidate's answer with the goal of mentoring them from an Associate level to a Senior Engineer level.
+- If MCQ: explain the nuance behind the correct answer and why other options fall short.
+- If Open-Ended: 
+  1. Critique the use of the STAR method (Situation, Task, Action, Result). Did they clearly articulate their specific contribution (Action) and the measurable impact (Result)?
+  2. Assess the technical depth. Did they discuss trade-offs, scalability, and "why" decisions were made?
+  3. Provide specific, actionable feedback on how to rephrase or restructure the answer to sound more senior, authoritative, and impact-focused.
 
 Return ONLY JSON. Format:
 {
   "feedback": "Detailed feedback text...",
   "score": "X/10",
-  "improvement_tips": ["Tip 1", "Tip 2", "Tip 3"]
+  "improvement_tips": ["Tip 1: Use STAR format more effectively...", "Tip 2: Quantify the result...", "Tip 3: Discuss trade-offs..."]
 }`;
 
   console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
@@ -258,7 +263,25 @@ export const handler = async (event) => {
     // === ROUTE: POST /submit (Feedback) ===
     if (route === "POST /submit") {
       const body = JSON.parse(event.body);
+      const { date, type, userAnswer } = body;
       const feedback = await generateFeedback(body);
+
+      // SAVE TO HISTORY (If date provided)
+      if (date) {
+        // Map "Resume Experience" -> "resume", "Technical Knowledge" -> "technical"
+        const section = type === 'Resume Experience' ? 'resume' : 'technical';
+        
+        await ddb.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: "DAILY_QUIZ", sk: date },
+          UpdateExpression: `SET quiz.${section}.open_ended.user_answer = :ua, quiz.${section}.open_ended.feedback = :fb`,
+          ExpressionAttributeValues: {
+            ":ua": userAnswer,
+            ":fb": feedback
+          }
+        }));
+      }
+
       return {
         statusCode: 200,
         headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
