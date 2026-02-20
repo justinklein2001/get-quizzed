@@ -23,11 +23,19 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
   const [textValue, setTextValue] = useState("");
   const [isActive, setIsActive] = useState(false);
   const baseTextRef = useRef("");
+  const isStarting = useRef(false);
 
   // Sync internal state with transcript when active
   useEffect(() => {
     if (isActive && listening) {
-        const newText = (baseTextRef.current + " " + transcript).trim();
+        let cleanTranscript = transcript
+            .replace(/\s*period\s*/gi, ". ")
+            .replace(/\s*comma\s*/gi, ", ")
+            .replace(/\s*question mark\s*/gi, "? ")
+            .replace(/\s*exclamation mark\s*/gi, "! ")
+            .replace(/\s*new line\s*/gi, "\n");
+            
+        const newText = (baseTextRef.current + " " + cleanTranscript).replace(/\s\s+/g, ' ').trim();
         setTextValue(newText);
         onTranscriptChange(newText);
     }
@@ -35,7 +43,12 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
 
   // Cleanup when listening stops globally
   useEffect(() => {
-    if (!listening && isActive) {
+    if (isStarting.current && listening) {
+      isStarting.current = false;
+    }
+
+    // Only turn off if we are not starting, and listening is false
+    if (!listening && isActive && !isStarting.current) {
         setIsActive(false);
     }
   }, [listening, isActive]);
@@ -55,15 +68,17 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
   }
 
   const toggleListening = () => {
-      if (isActive && listening) {
+      if (isActive) {
           SpeechRecognition.stopListening();
           setIsActive(false);
+          isStarting.current = false;
       } else {
           // Start listening
           // Capture current text as base
           baseTextRef.current = textValue;
           resetTranscript();
           setIsActive(true);
+          isStarting.current = true;
           SpeechRecognition.startListening({ continuous: true });
       }
   };
@@ -72,7 +87,7 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
       <div className="relative w-full">
           <textarea
               className={`w-full min-h-25 p-3 pr-12 rounded-md bg-background border border-border text-sm focus:outline-none focus:ring-2 focus:ring-${ringColor}-500/50`}
-              placeholder={isActive && listening ? "Listening..." : placeholder}
+              placeholder={isActive ? "Listening..." : placeholder}
               value={textValue}
               onChange={(e) => {
                   setTextValue(e.target.value);
@@ -80,15 +95,15 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
               }}
           />
           <Button
-              variant={isActive && listening ? "destructive" : "ghost"}
+              variant={isActive ? "destructive" : "ghost"}
               size="icon"
               className="absolute right-2 bottom-2 h-8 w-8"
               onClick={toggleListening}
-              title={isActive && listening ? "Stop Dictation" : "Start Dictation"}
+              title={isActive ? "Stop Dictation" : "Start Dictation"}
           >
-              {isActive && listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4 text-muted-foreground" />}
+              {isActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4 text-muted-foreground" />}
           </Button>
-           {isActive && listening && (
+           {isActive && (
               <span className="absolute right-12 bottom-3 text-xs text-red-500 animate-pulse">
                   Recording...
               </span>

@@ -18,6 +18,7 @@ configureAuth();
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [quizData, setQuizData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -55,14 +56,27 @@ export default function DashboardPage() {
       setSelectedLcOption(null);
       setSelectedResumeOption(null);
       setSelectedTechOption(null);
-      setResumeAnswer('');
-      setResumeFeedback(null);
-      setTechAnswer('');
-      setTechFeedback(null);
+
+      if (quizData.resume?.open_ended?.user_answer) {
+        setResumeAnswer(quizData.resume.open_ended.user_answer);
+        setResumeFeedback(quizData.resume.open_ended.feedback);
+      } else {
+        setResumeAnswer('');
+        setResumeFeedback(null);
+      }
+
+      if (quizData.technical?.open_ended?.user_answer) {
+        setTechAnswer(quizData.technical.open_ended.user_answer);
+        setTechFeedback(quizData.technical.open_ended.feedback);
+      } else {
+        setTechAnswer('');
+        setTechFeedback(null);
+      }
     }
   }, [quizData]);
 
   async function fetchHistory() {
+    setHistoryLoading(true);
     try {
       const res = await fetch(process.env.NEXT_PUBLIC_API_URL + '/history');
       if (res.ok) {
@@ -71,6 +85,8 @@ export default function DashboardPage() {
       }
     } catch (e) {
       console.error("Failed to fetch history", e);
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -146,6 +162,7 @@ export default function DashboardPage() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                date: quizData.date,
                 question,
                 userAnswer: answer,
                 type: type === 'resume' ? 'Resume Experience' : 'Technical Knowledge',
@@ -166,6 +183,16 @@ export default function DashboardPage() {
   };
 
   const renderHeatmap = () => {
+    if (historyLoading) {
+      return (
+        <Card className="mb-8 border-border/50 bg-card/50">
+          <CardContent className="py-8 flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      );
+    }
+
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (6 - i));
@@ -293,17 +320,17 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center p-8 bg-card rounded-lg m-4 border-2 border-dashed">
                 <div className="text-center space-y-4 max-w-2xl">
-                  <div className="flex justify-center gap-8 mb-8 text-muted-foreground">
+                  <div className="flex flex-col md:flex-row justify-center items-center gap-8 mb-8 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
                           <Database className="h-12 w-12"/>
                           <span className="text-xs">LanceDB (S3)</span>
                       </div>
-                      <div className="h-0.5 w-16 bg-zinc-300 self-center opacity-20"/>
+                      <div className="h-8 w-0.5 md:h-0.5 md:w-16 bg-zinc-300 self-center opacity-20"/>
                       <div className="flex flex-col items-center gap-2">
                           <Terminal className="h-12 w-12"/>
                           <span className="text-xs">AWS Lambda</span>
                       </div>
-                      <div className="h-0.5 w-16 bg-zinc-300 self-center opacity-20"/>
+                      <div className="h-8 w-0.5 md:h-0.5 md:w-16 bg-zinc-300 self-center opacity-20"/>
                        <div className="flex flex-col items-center gap-2">
                           <ShieldCheck className="h-12 w-12"/>
                           <span className="text-xs">Cognito Auth</span>
