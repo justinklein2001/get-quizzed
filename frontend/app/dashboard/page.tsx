@@ -12,6 +12,7 @@ import { Loader2, Lock, ShieldCheck, Terminal, Database, Cloud, ExternalLink } f
 import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/NavBar';
 import { DictationButton } from '@/components/DictationButton';
+import { STARDrill } from '@/components/STARDrill';
 
 configureAuth();
 
@@ -31,10 +32,6 @@ export default function DashboardPage() {
   const [selectedTechOption, setSelectedTechOption] = useState<number | null>(null);
 
   // Open Ended State
-  const [resumeAnswer, setResumeAnswer] = useState('');
-  const [resumeFeedback, setResumeFeedback] = useState<any>(null);
-  const [resumeSubmitting, setResumeSubmitting] = useState(false);
-
   const [techAnswer, setTechAnswer] = useState('');
   const [techFeedback, setTechFeedback] = useState<any>(null);
   const [techSubmitting, setTechSubmitting] = useState(false);
@@ -56,14 +53,6 @@ export default function DashboardPage() {
       setSelectedLcOption(null);
       setSelectedResumeOption(null);
       setSelectedTechOption(null);
-
-      if (quizData.resume?.open_ended?.user_answer) {
-        setResumeAnswer(quizData.resume.open_ended.user_answer);
-        setResumeFeedback(quizData.resume.open_ended.feedback);
-      } else {
-        setResumeAnswer('');
-        setResumeFeedback(null);
-      }
 
       if (quizData.technical?.open_ended?.user_answer) {
         setTechAnswer(quizData.technical.open_ended.user_answer);
@@ -144,13 +133,10 @@ export default function DashboardPage() {
     }
   };
 
-  const submitAnswer = async (type: 'resume' | 'technical', answer: string, question: string, context: any) => {
-    if (!answer.trim()) return;
+  const submitTechnicalAnswer = async () => {
+    if (!techAnswer.trim()) return;
     
-    const setSubmitting = type === 'resume' ? setResumeSubmitting : setTechSubmitting;
-    const setFeedback = type === 'resume' ? setResumeFeedback : setTechFeedback;
-    
-    setSubmitting(true);
+    setTechSubmitting(true);
     try {
         const session = await fetchAuthSession();
         const token = session.tokens?.accessToken?.toString();
@@ -163,22 +149,22 @@ export default function DashboardPage() {
             },
             body: JSON.stringify({
                 date: quizData.date,
-                question,
-                userAnswer: answer,
-                type: type === 'resume' ? 'Resume Experience' : 'Technical Knowledge',
-                context: context
+                question: quizData.technical.open_ended.question,
+                userAnswer: techAnswer,
+                type: 'Technical Knowledge',
+                context: quizData.technical.open_ended
             }) 
         });
         
         if (!response.ok) throw new Error("Failed to submit");
         const data = await response.json();
-        setFeedback(data);
+        setTechFeedback(data);
 
     } catch (e) {
         console.error(e);
         alert("Failed to submit answer. Please try again.");
     } finally {
-        setSubmitting(false);
+        setTechSubmitting(false);
     }
   };
 
@@ -562,52 +548,17 @@ export default function DashboardPage() {
 
                 <div className="h-px bg-border/50" />
 
-                {/* Open Ended */}
+                {/* STAR Drill (5 Questions) */}
                 <div className="space-y-3">
                    <h4 className="font-semibold text-sm flex items-center gap-2">
                      <span className="w-2 h-2 rounded-full bg-orange-500"/>
-                     Open-Ended Scenario
+                     STAR Method Drill
                    </h4>
-                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
-                     <p className="text-sm font-medium mb-4">{quizData.resume.open_ended?.question}</p>
-                     
-                     {!resumeFeedback ? (
-                       <>
-                         <DictationButton 
-                            placeholder="Type or dictate your answer..." 
-                            onTranscriptChange={setResumeAnswer}
-                            ringColor="orange"
-                         />
-                         <div className="flex justify-end mt-2">
-                            <Button 
-                              size="sm" 
-                              onClick={() => submitAnswer('resume', resumeAnswer, quizData.resume.open_ended.question, quizData.resume.open_ended)}
-                              disabled={resumeSubmitting || !resumeAnswer.trim()}
-                            >
-                              {resumeSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit Answer"}
-                            </Button>
-                         </div>
-                       </>
-                     ) : (
-                       <div className="space-y-4">
-                          <div className="p-3 bg-background/50 rounded text-sm italic border border-border/30">
-                             <p className="font-bold text-muted-foreground text-xs mb-1">Your Answer:</p>
-                             "{resumeAnswer}"
-                          </div>
-                          <div className="p-4 bg-orange-950/30 rounded border border-orange-500/20 text-sm space-y-2">
-                              <div className="flex items-center justify-between">
-                                  <span className="font-bold text-orange-400">Score: {resumeFeedback.score}</span>
-                              </div>
-                              <p className="text-orange-100">{resumeFeedback.feedback}</p>
-                              {resumeFeedback.improvement_tips && (
-                                <ul className="list-disc pl-5 text-xs text-orange-200/80">
-                                   {resumeFeedback.improvement_tips.map((tip: string, i: number) => <li key={i}>{tip}</li>)}
-                                </ul>
-                              )}
-                          </div>
-                       </div>
-                     )}
-                   </div>
+                   {quizData.resume.questions ? (
+                       <STARDrill questions={quizData.resume.questions} date={quizData.date} />
+                   ) : (
+                       <p className="text-sm text-muted-foreground">No STAR questions available for this date.</p>
+                   )}
                 </div>
 
               </CardContent>
@@ -687,7 +638,7 @@ export default function DashboardPage() {
                          <div className="flex justify-end mt-2">
                             <Button 
                               size="sm"
-                              onClick={() => submitAnswer('technical', techAnswer, quizData.technical.open_ended.question, quizData.technical.open_ended)}
+                              onClick={submitTechnicalAnswer}
                               disabled={techSubmitting || !techAnswer.trim()}
                             >
                               {techSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit Answer"}

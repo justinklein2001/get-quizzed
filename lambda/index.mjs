@@ -143,7 +143,7 @@ ${prompt}
   return cleanResponse(raw.generation);
 }
 
-// 4. GENERATE QUESTION (Open Ended)
+// 4. GENERATE QUESTION (Open Ended - Legacy/Technical)
 async function generateOpenEnded(context, type) {
   const prompt = `
 You are a tough Senior Technical Interviewer at a top-tier tech company.
@@ -162,10 +162,8 @@ Return ONLY JSON. Format:
   "guidelines": "Key technical points, architectural considerations, and STAR format elements expected for a Senior-level answer."
 }`;
 
-  console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
-  if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
+  console.log("generateOpenEnded - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
 
-  // Llama 3 Formatting
   const llamaPrompt = `
 <|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
@@ -186,11 +184,113 @@ ${prompt}
   }));
 
   const raw = JSON.parse(new TextDecoder().decode(response.body));
-  // Llama 3 returns { generation: "..." }
   return cleanResponse(raw.generation);
 }
 
-// 5. GENERATE FEEDBACK
+// 4. GENERATE QUESTIONS (STAR Drill - 5 Questions)
+async function generateSTARQuestions(context) {
+  const prompt = `
+You are a tough Senior Technical Interviewer.
+Context:
+${context}
+
+Task: Generate 5 distinct, challenging behavioral or technical interview questions based on the candidate's resume/experience.
+- The questions should target different competencies (e.g., System Design, Conflict Resolution, Leadership, Technical Deep Dive, Delivery/Execution).
+- Each question must be answerable using the STAR method.
+
+Return ONLY JSON. Format:
+{
+  "questions": [
+    {
+      "id": "q1",
+      "category": "Leadership", 
+      "question": "Tell me about a time you..."
+    },
+    ... (4 more)
+  ]
+}`;
+
+  console.log("generateSTARQuestions - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
+  
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: process.env.BEDROCK_MODEL_ID,
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      prompt: llamaPrompt,
+      max_gen_len: 2048,
+      temperature: 0.7,
+      top_p: 0.9
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  const result = cleanResponse(raw.generation);
+  return result.questions || [];
+}
+
+// 5. VALIDATE STAR STEP
+async function validateSTARStep(payload) {
+  const { question, step, userAnswer } = payload;
+  
+  const stepDefinitions = {
+    'S': 'Situation: Set the scene and give the necessary details of your example.',
+    'T': 'Task: Describe what your responsibility was in that situation.',
+    'A': 'Action: Explain exactly what steps you took to address it.',
+    'R': 'Result: Share what outcomes your actions achieved.'
+  };
+
+  const prompt = `
+You are a strict Technical Interview Coach.
+The candidate is answering the question: "${question}"
+They are currently providing the **${step} (${stepDefinitions[step]})** portion of the STAR method.
+
+Candidate's Input for ${step}: "${userAnswer}"
+
+Task:
+1. Score this specific section (0-10) based on clarity, specificity, and impact.
+   - Score < 8 if it's vague, generic, or lacks "I" statements (for Action).
+2. If score < 8, provide a **Better Version** of this specific section. Rewrite their answer to be punchier, more professional, and more impressive, while keeping their core facts.
+3. Provide brief, actionable feedback.
+
+Return ONLY JSON. Format:
+{
+  "score": 8,
+  "feedback": "Good context, but...",
+  "better_version": "..." (Only if score < 8, else null)
+}`;
+
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: process.env.BEDROCK_MODEL_ID,
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      prompt: llamaPrompt,
+      max_gen_len: 1024,
+      temperature: 0.5,
+      top_p: 0.9
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  return cleanResponse(raw.generation);
+}
+
+// 6. GENERATE FEEDBACK (Legacy/General)
 async function generateFeedback(payload) {
   const { question, userAnswer, type, context } = payload;
   
@@ -214,9 +314,6 @@ Return ONLY JSON. Format:
   "score": "X/10",
   "improvement_tips": ["Tip 1: Use STAR format more effectively...", "Tip 2: Quantify the result...", "Tip 3: Discuss trade-offs..."]
 }`;
-
-  console.log("generateMCQ - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
-  if (!process.env.BEDROCK_MODEL_ID) throw new Error("Missing BEDROCK_MODEL_ID env var");
 
   // Llama 3 Formatting
   const llamaPrompt = `
@@ -247,12 +344,7 @@ export const handler = async (event) => {
   // DEBUG: Check environment variable
   console.log("Handler invoked.");
   console.log("Environment BEDROCK_MODEL_ID exists:", !!process.env.BEDROCK_MODEL_ID);
-  if (process.env.BEDROCK_MODEL_ID) {
-    console.log("Environment BEDROCK_MODEL_ID length:", process.env.BEDROCK_MODEL_ID.length);
-  } else {
-    console.error("CRITICAL: BEDROCK_MODEL_ID is missing from environment variables!");
-  }
-
+  
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } };
   }
@@ -260,7 +352,45 @@ export const handler = async (event) => {
   try {
     const route = event.routeKey || `${event.httpMethod} ${event.path}`; // Fallback
 
-    // === ROUTE: POST /submit (Feedback) ===
+    // === ROUTE: POST /validate-star (New STAR Flow) ===
+    if (route === "POST /validate-star") {
+      const body = JSON.parse(event.body);
+      // body: { date, questionId, step: 'S'|'T'|'A'|'R', userAnswer, questionText }
+      
+      const validation = await validateSTARStep(body);
+
+      // Save progress if date is provided
+      if (body.date && body.questionIndex !== undefined) {
+         // We need to fetch the current quiz, update the specific question's step, and save back
+         // This is a bit heavy for a single step validation, but ensures persistence.
+         // Optimization: We could use an UpdateExpression if we know the path.
+         // Path: quiz.resume.questions[index].userProgress[step]
+         
+         const updateExpr = `SET quiz.resume.questions[${body.questionIndex}].userProgress.${body.step} = :val`;
+         
+         await ddb.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: "DAILY_QUIZ", sk: body.date },
+          UpdateExpression: updateExpr,
+          ExpressionAttributeValues: {
+            ":val": {
+              answer: body.userAnswer,
+              score: validation.score,
+              feedback: validation.feedback,
+              better_version: validation.better_version
+            }
+          }
+        }));
+      }
+
+      return {
+        statusCode: 200,
+        headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+        body: JSON.stringify(validation)
+      };
+    }
+
+    // === ROUTE: POST /submit (Legacy/Technical Feedback) ===
     if (route === "POST /submit") {
       const body = JSON.parse(event.body);
       const { date, type, userAnswer } = body;
@@ -269,7 +399,11 @@ export const handler = async (event) => {
       // SAVE TO HISTORY (If date provided)
       if (date) {
         // Map "Resume Experience" -> "resume", "Technical Knowledge" -> "technical"
+        // Note: Resume flow is now handled by validate-star, but we keep this for Technical or legacy support
         const section = type === 'Resume Experience' ? 'resume' : 'technical';
+        
+        // For technical, we still use the single open_ended field for now, unless we want to STAR that too.
+        // The requirement specifically said "5 of these questions for the resume".
         
         await ddb.send(new UpdateCommand({
           TableName: TABLE_NAME,
@@ -347,16 +481,11 @@ export const handler = async (event) => {
     const db = await lancedb.connect(DB_PATH);
     const table = await db.openTable("knowledge_base");
     
-    // Debug: Check data count
-    const rowCount = await table.countRows();
-    console.log(`📊 Table 'knowledge_base' loaded with ${rowCount} rows.`);
-
     // Fetch Candidates (Parallel & Independent Vectors)
     const [v1, v3] = await Promise.all([
       getRandomVector(),
       getRandomVector()
     ]);
-    console.log(`Debug: v1 length: ${v1?.length}, v3 length: ${v3?.length}`); // Log vector lengths
 
     const [leetcodeResult, resumeResult, noteResult] = await Promise.all([
       table.search(v1).filter("category = 'leetcode'").limit(5).toArray(),
@@ -364,23 +493,16 @@ export const handler = async (event) => {
       table.search(v3).filter("category = 'note'").limit(5).toArray()
     ]);
 
-    // Assign results and log them
+    // Assign results
     const leetcodeRows = leetcodeResult;
     const resumeRows = resumeResult;
     const noteRows = noteResult;
 
-    // Debugging logs for search results
-    console.log(`Debug: leetcodeRows.length: ${leetcodeRows?.length}`);
-    console.log(`Debug: resumeRows.length (initial): ${resumeRows?.length}`);
-    console.log(`Debug: noteRows.length: ${noteRows?.length}`);
-
     // Special Handling for Resume (Low Data Count)
-    // If vector search misses the single resume file, just grab any resume row
     let finalResumeRows = resumeRows;
     if (resumeRows.length === 0) {
        console.log("Resume vector search returned 0. Fetching fallback...");
        finalResumeRows = await table.query().filter("category = 'resume'").limit(1).toArray();
-       console.log(`Debug: finalResumeRows.length (after fallback): ${finalResumeRows.length}`);
     }
 
     // Pick Randoms
@@ -389,32 +511,34 @@ export const handler = async (event) => {
     const note = noteRows[Math.floor(Math.random() * noteRows.length)];
 
     if (!lc || !res || !note) {
-      const missing = [];
-      if (!lc) missing.push("leetcode");
-      if (!res) missing.push("resume");
-      if (!note) missing.push("note");
-      throw new Error(`Insufficient data in Vector DB for categories: ${missing.join(", ")}`);
+      throw new Error(`Insufficient data in Vector DB`);
     }
 
     // Generate AI Questions
-    const [q1, q2_mcq, q2_open, q3_mcq, q3_open] = await Promise.all([
+    // CHANGED: Use generateSTARQuestions for resume
+    const [q1, q2_mcq, q2_star, q3_mcq, q3_open] = await Promise.all([
       generateMCQ(lc.text, "LeetCode Strategy"),
       generateMCQ(res.text, "Resume Experience"),
-      generateOpenEnded(res.text, "Resume Experience"),
+      generateSTARQuestions(res.text), 
       generateMCQ(note.text, "Technical Knowledge"),
-      generateOpenEnded(note.text, "Technical Knowledge")
+      generateOpenEnded(note.text, "Technical Knowledge") // Keep tech as single open-ended for now
     ]);
 
     const quiz = {
       date: today,
       leetcode: {
-        problem: JSON.parse(lc.text), // Original LeetCode JSON nested
+        problem: JSON.parse(lc.text),
         ai_question: q1
       },
       resume: {
         context: res.metadata,
         mcq: q2_mcq,
-        open_ended: q2_open
+        questions: q2_star.map(q => ({
+            ...q,
+            userProgress: {
+                S: null, T: null, A: null, R: null
+            }
+        }))
       },
       technical: {
         context: note.metadata,
@@ -439,6 +563,7 @@ export const handler = async (event) => {
       headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
       body: JSON.stringify(quiz)
     };
+
 
   } catch (error) {
     console.error(error);

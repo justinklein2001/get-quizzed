@@ -10,9 +10,10 @@ interface DictationButtonProps {
   onTranscriptChange: (text: string) => void;
   placeholder: string;
   ringColor: string;
+  value?: string;
 }
 
-export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: DictationButtonProps) => {
+export const DictationButton = ({ onTranscriptChange, placeholder, ringColor, value }: DictationButtonProps) => {
   const {
     transcript,
     listening,
@@ -20,10 +21,17 @@ export const DictationButton = ({ onTranscriptChange, placeholder, ringColor }: 
     resetTranscript
   } = useSpeechRecognition();
   
-  const [textValue, setTextValue] = useState("");
+  const [textValue, setTextValue] = useState(value || "");
   const [isActive, setIsActive] = useState(false);
   const baseTextRef = useRef("");
   const isStarting = useRef(false);
+
+  // Sync internal state with prop value if provided (Controlled mode)
+  useEffect(() => {
+    if (value !== undefined && value !== textValue) {
+      setTextValue(value);
+    }
+  }, [value]);
 
   // Sync internal state with transcript when active
   useEffect(() => {
