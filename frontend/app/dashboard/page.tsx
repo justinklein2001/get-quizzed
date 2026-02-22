@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/NavBar';
 import { DictationButton } from '@/components/DictationButton';
 import { STARDrill } from '@/components/STARDrill';
+import { TechnicalCodingDrill } from '@/components/TechnicalCodingDrill';
 
 configureAuth();
 
@@ -31,11 +32,6 @@ export default function DashboardPage() {
   const [selectedResumeOption, setSelectedResumeOption] = useState<number | null>(null);
   const [selectedTechOption, setSelectedTechOption] = useState<number | null>(null);
 
-  // Open Ended State
-  const [techAnswer, setTechAnswer] = useState('');
-  const [techFeedback, setTechFeedback] = useState<any>(null);
-  const [techSubmitting, setTechSubmitting] = useState(false);
-
   const getAnswerIndex = (answerStr: string) => {
     if (!answerStr) return -1;
     const firstChar = answerStr.trim().charAt(0).toUpperCase();
@@ -53,14 +49,6 @@ export default function DashboardPage() {
       setSelectedLcOption(null);
       setSelectedResumeOption(null);
       setSelectedTechOption(null);
-
-      if (quizData.technical?.open_ended?.user_answer) {
-        setTechAnswer(quizData.technical.open_ended.user_answer);
-        setTechFeedback(quizData.technical.open_ended.feedback);
-      } else {
-        setTechAnswer('');
-        setTechFeedback(null);
-      }
     }
   }, [quizData]);
 
@@ -130,41 +118,6 @@ export default function DashboardPage() {
       setError(err.message || 'Failed to generate quiz');
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const submitTechnicalAnswer = async () => {
-    if (!techAnswer.trim()) return;
-    
-    setTechSubmitting(true);
-    try {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.accessToken?.toString();
-
-        const response = await fetch(process.env.NEXT_PUBLIC_API_URL + '/submit', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                date: quizData.date,
-                question: quizData.technical.open_ended.question,
-                userAnswer: techAnswer,
-                type: 'Technical Knowledge',
-                context: quizData.technical.open_ended
-            }) 
-        });
-        
-        if (!response.ok) throw new Error("Failed to submit");
-        const data = await response.json();
-        setTechFeedback(data);
-
-    } catch (e) {
-        console.error(e);
-        alert("Failed to submit answer. Please try again.");
-    } finally {
-        setTechSubmitting(false);
     }
   };
 
@@ -619,52 +572,17 @@ export default function DashboardPage() {
 
                 <div className="h-px bg-border/50" />
 
-                {/* Open Ended */}
+                {/* Coding Challenge (3 Questions) */}
                 <div className="space-y-3">
                    <h4 className="font-semibold text-sm flex items-center gap-2">
                      <span className="w-2 h-2 rounded-full bg-indigo-500"/>
-                     Open-Ended Scenario
+                     Coding Challenge
                    </h4>
-                   <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
-                     <p className="text-sm font-medium mb-4">{quizData.technical.open_ended?.question}</p>
-                     
-                     {!techFeedback ? (
-                       <>
-                        <DictationButton 
-                            placeholder="Explain your reasoning..." 
-                            onTranscriptChange={setTechAnswer}
-                            ringColor="indigo"
-                         />
-                         <div className="flex justify-end mt-2">
-                            <Button 
-                              size="sm"
-                              onClick={submitTechnicalAnswer}
-                              disabled={techSubmitting || !techAnswer.trim()}
-                            >
-                              {techSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Submit Answer"}
-                            </Button>
-                         </div>
-                       </>
-                     ) : (
-                       <div className="space-y-4">
-                          <div className="p-3 bg-background/50 rounded text-sm italic border border-border/30">
-                             <p className="font-bold text-muted-foreground text-xs mb-1">Your Answer:</p>
-                             "{techAnswer}"
-                          </div>
-                          <div className="p-4 bg-indigo-950/30 rounded border border-indigo-500/20 text-sm space-y-2">
-                              <div className="flex items-center justify-between">
-                                  <span className="font-bold text-indigo-400">Score: {techFeedback.score}</span>
-                              </div>
-                              <p className="text-indigo-100">{techFeedback.feedback}</p>
-                              {techFeedback.improvement_tips && (
-                                <ul className="list-disc pl-5 text-xs text-indigo-200/80">
-                                   {techFeedback.improvement_tips.map((tip: string, i: number) => <li key={i}>{tip}</li>)}
-                                </ul>
-                              )}
-                          </div>
-                       </div>
-                     )}
-                   </div>
+                   {quizData.technical.questions ? (
+                       <TechnicalCodingDrill questions={quizData.technical.questions} date={quizData.date} />
+                   ) : (
+                       <p className="text-sm text-muted-foreground">No coding challenges available for this date.</p>
+                   )}
                 </div>
 
               </CardContent>

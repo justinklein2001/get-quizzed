@@ -236,7 +236,108 @@ ${prompt}
   return result.questions || [];
 }
 
-// 5. VALIDATE STAR STEP
+// 5. GENERATE CODING CHALLENGE (Technical - 3 Questions)
+async function generateTechnicalCodingQuestions(context) {
+  const prompt = `
+You are a Lead Software Engineer conducting a technical coding interview.
+Context:
+${context}
+
+Task: Generate 3 distinct, practical coding challenges based on the technical concepts in the context (e.g., if context is about NestJS, ask for a Guard/Interceptor/Controller; if React, a Hook/Component).
+- Each question must require writing actual code (TypeScript/JavaScript/Python).
+- Provide a starting code snippet for each.
+
+Return ONLY JSON. Format:
+{
+  "questions": [
+    {
+      "id": "t1",
+      "title": "Implement AuthGuard",
+      "description": "Create a NestJS guard that...",
+      "language": "typescript",
+      "starter_code": "import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';\\n\\n@Injectable()\\nexport class AuthGuard implements CanActivate {\\n  canActivate(context: ExecutionContext): boolean {\\n    // TODO: Implement logic\\n    return true;\\n  }\\n}"
+    },
+    ... (2 more)
+  ]
+}`;
+
+  console.log("generateTechnicalCodingQuestions - BEDROCK_MODEL_ID:", process.env.BEDROCK_MODEL_ID);
+  
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: process.env.BEDROCK_MODEL_ID,
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      prompt: llamaPrompt,
+      max_gen_len: 2048,
+      temperature: 0.5,
+      top_p: 0.9
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  const result = cleanResponse(raw.generation);
+  return result.questions || [];
+}
+
+// 6. VALIDATE CODE
+async function validateCode(payload) {
+  const { question, userAnswer, language } = payload;
+  
+  const prompt = `
+You are a Senior Engineer reviewing a Junior's pull request / interview code.
+Task: "Review this code implementation against the requirements."
+
+Question: "${question}"
+Language: "${language}"
+Candidate Code:
+\`\`\`${language}
+${userAnswer}
+\`\`\`
+
+Analysis Required:
+1. **Correctness**: Does it solve the problem? Does it compile/run logically?
+2. **Best Practices**: Is it idiomatic? (e.g., using proper hooks in React, decorators in NestJS).
+3. **Security/Edge Cases**: Did they handle nulls, errors, or security gaps?
+
+Return ONLY JSON. Format:
+{
+  "score": 8, // 0-10
+  "feedback": "The logic is sound, but you missed...",
+  "better_solution": "Here is a more idiomatic way to write it:\\n\`\`\`typescript\\n...code...\\n\`\`\`" (Only if score < 10)
+}`;
+
+  const llamaPrompt = `
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+${prompt}
+<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: process.env.BEDROCK_MODEL_ID,
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      prompt: llamaPrompt,
+      max_gen_len: 1024,
+      temperature: 0.3, // Lower temp for code analysis
+      top_p: 0.9
+    })
+  }));
+
+  const raw = JSON.parse(new TextDecoder().decode(response.body));
+  return cleanResponse(raw.generation);
+}
+
+// 7. VALIDATE STAR STEP
 async function validateSTARStep(payload) {
   const { question, step, userAnswer } = payload;
   
@@ -290,7 +391,7 @@ ${prompt}
   return cleanResponse(raw.generation);
 }
 
-// 6. GENERATE FEEDBACK (Legacy/General)
+// 8. GENERATE FEEDBACK (Legacy/General)
 async function generateFeedback(payload) {
   const { question, userAnswer, type, context } = payload;
   
@@ -361,11 +462,6 @@ export const handler = async (event) => {
 
       // Save progress if date is provided
       if (body.date && body.questionIndex !== undefined) {
-         // We need to fetch the current quiz, update the specific question's step, and save back
-         // This is a bit heavy for a single step validation, but ensures persistence.
-         // Optimization: We could use an UpdateExpression if we know the path.
-         // Path: quiz.resume.questions[index].userProgress[step]
-         
          const updateExpr = `SET quiz.resume.questions[${body.questionIndex}].userProgress.${body.step} = :val`;
          
          await ddb.send(new UpdateCommand({
@@ -378,6 +474,39 @@ export const handler = async (event) => {
               score: validation.score,
               feedback: validation.feedback,
               better_version: validation.better_version
+            }
+          }
+        }));
+      }
+
+      return {
+        statusCode: 200,
+        headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+        body: JSON.stringify(validation)
+      };
+    }
+
+    // === ROUTE: POST /validate-code (New Technical Coding Flow) ===
+    if (route === "POST /validate-code") {
+      const body = JSON.parse(event.body);
+      // body: { date, questionIndex, userAnswer, question, language }
+      
+      const validation = await validateCode(body);
+
+      // Save progress if date is provided
+      if (body.date && body.questionIndex !== undefined) {
+         const updateExpr = `SET quiz.technical.questions[${body.questionIndex}].userProgress = :val`;
+         
+         await ddb.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { pk: "DAILY_QUIZ", sk: body.date },
+          UpdateExpression: updateExpr,
+          ExpressionAttributeValues: {
+            ":val": {
+              answer: body.userAnswer,
+              score: validation.score,
+              feedback: validation.feedback,
+              better_solution: validation.better_solution
             }
           }
         }));
@@ -516,12 +645,13 @@ export const handler = async (event) => {
 
     // Generate AI Questions
     // CHANGED: Use generateSTARQuestions for resume
-    const [q1, q2_mcq, q2_star, q3_mcq, q3_open] = await Promise.all([
+    // CHANGED: Use generateTechnicalCodingQuestions for technical
+    const [q1, q2_mcq, q2_star, q3_mcq, q3_code] = await Promise.all([
       generateMCQ(lc.text, "LeetCode Strategy"),
       generateMCQ(res.text, "Resume Experience"),
       generateSTARQuestions(res.text), 
       generateMCQ(note.text, "Technical Knowledge"),
-      generateOpenEnded(note.text, "Technical Knowledge") // Keep tech as single open-ended for now
+      generateTechnicalCodingQuestions(note.text)
     ]);
 
     const quiz = {
@@ -543,7 +673,10 @@ export const handler = async (event) => {
       technical: {
         context: note.metadata,
         mcq: q3_mcq,
-        open_ended: q3_open
+        questions: q3_code.map(q => ({
+            ...q,
+            userProgress: null // Will store { answer, score, feedback }
+        }))
       }
     };
 
